@@ -118,7 +118,7 @@ const UserProfile = () => {
       const formData = new URLSearchParams();
       formData.append("code", code);
 
-      await api.post(`/auth/verify-2fa`, formData, {
+      await api.post(`api/auth/verify-2fa`, formData, {
         headers: {
           "Content-Type": "application/x-www-form-urlencoded",
         },
@@ -137,29 +137,32 @@ const UserProfile = () => {
 
   //update the credentials
   const handleUpdateCredential = async (data) => {
-    const newUsername = data.username;
-    const newPassword = data.password;
+  const newUsername = data.username;
+  const newPassword = data.password;
 
-    try {
-      setLoading(true);
-      const formData = new URLSearchParams();
-      formData.append("token", token);
-      formData.append("newUsername", newUsername);
-      formData.append("newPassword", newPassword);
-      await api.post("/auth/update-credentials", formData, {
-        headers: {
-          "Content-Type": "application/x-www-form-urlencoded",
-        },
-      });
+  try {
+    setLoading(true);
 
-      //fetchUser();
-      toast.success("Update Credential successful");
-    } catch (error) {
-      toast.error("Update Credential failed");
-    } finally {
-      setLoading(false);
-    }
-  };
+    const formData = new URLSearchParams();
+    formData.append("newUsername", newUsername);
+    formData.append("newPassword", newPassword);
+
+    await api.post("/auth/update-credentials", formData, {
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+        // Send JWT 
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    toast.success("Update Credential successful");
+  } catch (error) {
+    toast.error("Update Credential failed");
+  } finally {
+    setLoading(false);
+  }
+};
+
 
   //set the status of (credentialsNonExpired, accountNonLocked, enabled and credentialsNonExpired) current user
   useEffect(() => {

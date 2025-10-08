@@ -48,19 +48,19 @@ public class SecurityConfig {
     SecurityFilterChain defaultSecurityFilterChain(HttpSecurity http) throws Exception {
         http
                 .cors(withDefaults())
-                // Keep your CSRF config, it's fine
+
                 .csrf(csrf ->
                         csrf.csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
                                 .ignoringRequestMatchers("/api/auth/public/**")
                 );
 
         http.authorizeHttpRequests((requests) -> requests
-                        // FIX #1: Removed the space from the admin path
+
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
                         .requestMatchers("/api/csrf-token").permitAll()
                         .requestMatchers("/oauth2/**").permitAll()
                         // FIX #2: Changed permitAll() to anonymous() to block logged-in users
-                        .requestMatchers("/api/auth/public/**").anonymous()
+                        .requestMatchers("/api/auth/public/**").permitAll()
                         // All other requests need authentication
                         .anyRequest().authenticated())
                 .oauth2Login(oauth2 -> {
@@ -80,34 +80,6 @@ public class SecurityConfig {
 
         return http.build();
     }
-
-//    @Bean
-//    SecurityFilterChain defaultSecurityFilterChain(HttpSecurity http) throws Exception {
-//        http
-//                .cors(withDefaults())
-//                .csrf(csrf ->
-//                csrf.csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
-//                        .ignoringRequestMatchers("/api/auth/public/**")
-//        );
-//        //http.csrf(AbstractHttpConfigurer::disable);
-//        http.authorizeHttpRequests((requests)
-//                -> requests
-//                .requestMatchers("/api/admin/**").hasRole("ADMIN")
-//                .requestMatchers("/api/csrf-token").anonymous()
-//                .requestMatchers("/api/auth/public/**").anonymous()
-//                .requestMatchers("/oauth2/**").permitAll()
-//                .anyRequest().authenticated())
-//                .oauth2Login(oauth2 -> {
-//                    oauth2.successHandler(oAuth2LoginSuccessHandler);
-//                });
-//        http.exceptionHandling(exception
-//                -> exception.authenticationEntryPoint(unauthorizedHandler));
-//        http.addFilterBefore(authenticationJwtTokenFilter(),
-//                UsernamePasswordAuthenticationFilter.class);
-//        http.formLogin(withDefaults());
-//        http.httpBasic(withDefaults());
-//        return http.build();
-//    }
 
     @Bean
     public AuthenticationManager authenticationManager(AuthenticationConfiguration authenticationConfiguration) throws Exception {
@@ -146,7 +118,7 @@ public class SecurityConfig {
             }
 
             if (!userRepository.existsByUserName("admin")) {
-                User admin = new User("admin", "admin@example.com",
+                User admin = new User("admin", "vishaldiwakar402@gmail.com",
                         passwordEncoder.encode("adminPass"));
                 admin.setAccountNonLocked(true);
                 admin.setAccountNonExpired(true);

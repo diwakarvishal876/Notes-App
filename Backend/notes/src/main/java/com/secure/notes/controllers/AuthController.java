@@ -15,6 +15,7 @@ import com.secure.notes.services.TotpService;
 import com.secure.notes.services.UserService;
 import com.secure.notes.util.AuthUtil;
 import com.warrenstrange.googleauth.GoogleAuthenticatorKey;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -200,7 +201,67 @@ public class AuthController {
                     .body(new MessageResponse(e.getMessage()));
         }
     }
+    @PostMapping("/update-password")
+    public ResponseEntity<?> updatePassword(
+            HttpServletRequest request,
+            @RequestParam String newPassword
+    ) {
+        try {
+            // Extract JWT token from Authorization header
+            String token = jwtUtils.getJwtFromHeader(request);
+            if (token == null) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                        .body(new MessageResponse("Unauthorized: No token provided"));
+            }
 
+            // Get username from token
+            String username = jwtUtils.getUserNameFromJwtToken(token);
+            User user = userRepository.findByUserName(username)
+                    .orElseThrow(() -> new RuntimeException("User not found"));
+
+            // Update password securely
+            user.setPassword(encoder.encode(newPassword));
+            userRepository.save(user);
+
+            return ResponseEntity.ok(new MessageResponse("Password updated successfully"));
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(new MessageResponse("Failed to update password"));
+        }
+    }
+    @PostMapping("/update-credentials")
+    public ResponseEntity<?> updateCredentials(
+            HttpServletRequest request,
+            @RequestParam String newUsername,
+            @RequestParam String newPassword) {
+        try {
+            // Extract JWT token from Authorization header
+            String token = jwtUtils.getJwtFromHeader(request);
+            if (token == null) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                        .body(new MessageResponse("Unauthorized: No token provided"));
+            }
+
+            // Get username from token
+            String currentUsername = jwtUtils.getUserNameFromJwtToken(token);
+            User user = userRepository.findByUserName(currentUsername)
+                    .orElseThrow(() -> new RuntimeException("User not found"));
+
+            // Update username and password securely
+            user.setUserName(newUsername); // Add this line
+            if (newPassword != null && !newPassword.isEmpty()) { // Only update password if provided
+                user.setPassword(encoder.encode(newPassword));
+            }
+            userRepository.save(user);
+
+            return ResponseEntity.ok(new MessageResponse("Credentials updated successfully"));
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(new MessageResponse("Failed to update credentials"));
+        }
+    }
     // 2FA Authentication
     @PostMapping("/enable-2fa")
     public ResponseEntity<String> enable2FA() {
@@ -210,6 +271,7 @@ public class AuthController {
                 userService.getUserById(userId).getUserName());
         return ResponseEntity.ok(qrCodeUrl);
     }
+
 
     @PostMapping("/disable-2fa")
     public ResponseEntity<String> disable2FA() {
@@ -257,5 +319,42 @@ public class AuthController {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                     .body("Invalid 2FA Code");
         }
+    }
+
+    @PutMapping("/update-expiry-status")
+    public ResponseEntity<?> updateAccountExpiryStatus(@RequestParam boolean expire) {
+        User user = authUtil.loggedInUser();
+        // Frontend sends 'accountExpired', backend stores 'accountNonExpired'
+        // So we set the backend field to the opposite of the frontend value.
+        user.setAccountNonExpired(!expire);
+        userRepository.save(user);
+        return ResponseEntity.ok(new MessageResponse("Account expiry status updated."));
+    }
+
+    @PutMapping("/update-lock-status")
+    public ResponseEntity<?> updateAccountLockStatus(@RequestParam boolean lock) {
+        User user = authUtil.loggedInUser();
+        // Frontend sends 'accountLocked', backend stores 'accountNonLocked'
+        user.setAccountNonLocked(!lock);
+        userRepository.save(user);
+        return ResponseEntity.ok(new MessageResponse("Account lock status updated."));
+    }
+
+    @PutMapping("/update-enabled-status")
+    public ResponseEntity<?> updateAccountEnabledStatus(@RequestParam boolean enabled) {
+        User user = authUtil.loggedInUser();
+        // This mapping is direct: enabled (frontend) -> enabled (backend)
+        user.setEnabled(enabled);
+        userRepository.save(user);
+        return ResponseEntity.ok(new MessageResponse("Account enabled status updated."));
+    }
+
+    @PutMapping("/update-credentials-expiry-status")
+    public ResponseEntity<?> updateCredentialsExpiryStatus(@RequestParam boolean expire) {
+        User user = authUtil.loggedInUser();
+        // Frontend sends 'credentialExpired', backend stores 'credentialsNonExpired'
+        user.setCredentialsNonExpired(!expire);
+        userRepository.save(user);
+        return ResponseEntity.ok(new MessageResponse("Credentials expiry status updated."));
     }
 }
