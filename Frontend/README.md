@@ -1,4 +1,4 @@
-# Getting Started with Create React App
+# Getting Started 
 
 Download the project then run npm install this will load all necessary modules
 
