@@ -17,9 +17,7 @@ import moment from "moment";
 import Errors from "../Errors";
 
 const UserProfile = () => {
-  // Access the currentUser and token hook using the useMyContext custom hook from the ContextProvider
   const { currentUser, token } = useMyContext();
-  //set the loggin session from the token
   const [loginSession, setLoginSession] = useState(null);
 
   const [credentialExpireDate, setCredentialExpireDate] = useState(null);

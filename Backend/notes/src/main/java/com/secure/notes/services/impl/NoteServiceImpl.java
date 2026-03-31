@@ -1,5 +1,6 @@
 package com.secure.notes.services.impl;
 
+import com.secure.notes.exceptions.customException.NoteNotFoundException;
 import com.secure.notes.models.Note;
 import com.secure.notes.repositories.NoteRepository;
 import com.secure.notes.services.AuditLogService;
@@ -30,8 +31,8 @@ public class NoteServiceImpl implements NoteService {
 
     @Override
     public Note updateNoteForUser(Long noteId, String content, String username) {
-        Note note = noteRepository.findById(noteId).orElseThrow(()
-                -> new RuntimeException("Note not found"));
+        Note note = noteRepository.findById(noteId)
+                .orElseThrow(() -> new NoteNotFoundException("Note not found"));
         note.setContent(content);
         Note updatedNote = noteRepository.save(note);
         auditLogService.logNoteUpdate(username, note);
@@ -40,9 +41,8 @@ public class NoteServiceImpl implements NoteService {
 
     @Override
     public void deleteNoteForUser(Long noteId, String username) {
-        Note note = noteRepository.findById(noteId).orElseThrow(
-                () -> new RuntimeException("Note not found")
-        );
+        Note note = noteRepository.findById(noteId)
+                .orElseThrow(() -> new NoteNotFoundException("Note not found"));
         auditLogService.logNoteDeletion(username, noteId);
         noteRepository.delete(note);
     }
@@ -54,5 +54,3 @@ public class NoteServiceImpl implements NoteService {
         return personalNotes;
     }
 }
-
-

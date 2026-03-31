@@ -1,5 +1,6 @@
 package com.secure.notes.util;
 
+import com.secure.notes.exceptions.customException.UserNotFoundException;
 import com.secure.notes.models.User;
 import com.secure.notes.repositories.UserRepository;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -16,13 +17,13 @@ public class AuthUtil {
     public Long loggedInUserId(){
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         User user = userRepository.findByUserName(authentication.getName())
-                .orElseThrow(() -> new RuntimeException("User not found"));
+                .orElseThrow(() -> new UserNotFoundException("User not found"));
         return user.getUserId();
     }
 
     public User loggedInUser(){
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         return userRepository.findByUserName(authentication.getName())
-                .orElseThrow(() -> new RuntimeException("User not found"));
+                .orElseThrow(() -> new UserNotFoundException("User not found"));
     }
 }

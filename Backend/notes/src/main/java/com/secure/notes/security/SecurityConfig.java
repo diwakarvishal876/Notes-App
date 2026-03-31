@@ -48,7 +48,6 @@ public class SecurityConfig {
     SecurityFilterChain defaultSecurityFilterChain(HttpSecurity http) throws Exception {
         http
                 .cors(withDefaults())
-
                 .csrf(csrf ->
                         csrf.csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
                                 .ignoringRequestMatchers("/api/auth/public/**")
@@ -59,20 +58,17 @@ public class SecurityConfig {
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
                         .requestMatchers("/api/csrf-token").permitAll()
                         .requestMatchers("/oauth2/**").permitAll()
-                        // FIX #2: Changed permitAll() to anonymous() to block logged-in users
                         .requestMatchers("/api/auth/public/**").permitAll()
-                        // All other requests need authentication
                         .anyRequest().authenticated())
                 .oauth2Login(oauth2 -> {
                     oauth2.successHandler(oAuth2LoginSuccessHandler);
                 });
 
-        // For a stateless JWT API, it's common to disable form and basic auth
+        //disable form and basic auth
         http.formLogin(form -> form.disable());
         http.httpBasic(basic -> basic.disable());
 
 
-        // Your custom exception handling and filter remain the same
         http.exceptionHandling(exception
                 -> exception.authenticationEntryPoint(unauthorizedHandler));
         http.addFilterBefore(authenticationJwtTokenFilter(),
@@ -91,47 +87,5 @@ public class SecurityConfig {
         return new BCryptPasswordEncoder();
     }
 
-    @Bean
-    public CommandLineRunner initData(RoleRepository roleRepository,
-                                      UserRepository userRepository,
-                                      PasswordEncoder passwordEncoder) {
-        return args -> {
-            Role userRole = roleRepository.findByRoleName(AppRole.ROLE_USER)
-                    .orElseGet(() -> roleRepository.save(new Role(AppRole.ROLE_USER)));
-
-            Role adminRole = roleRepository.findByRoleName(AppRole.ROLE_ADMIN)
-                    .orElseGet(() -> roleRepository.save(new Role(AppRole.ROLE_ADMIN)));
-
-            if (!userRepository.existsByUserName("user1")) {
-                User user1 = new User("user1", "user1@example.com",
-                        passwordEncoder.encode("password1"));
-                user1.setAccountNonLocked(false);
-                user1.setAccountNonExpired(true);
-                user1.setCredentialsNonExpired(true);
-                user1.setEnabled(true);
-                user1.setCredentialsExpiryDate(LocalDate.now().plusYears(1));
-                user1.setAccountExpiryDate(LocalDate.now().plusYears(1));
-                user1.setTwoFactorEnabled(false);
-                user1.setSignUpMethod("email");
-                user1.setRole(userRole);
-                userRepository.save(user1);
-            }
-
-            if (!userRepository.existsByUserName("admin")) {
-                User admin = new User("admin", "vishaldiwakar402@gmail.com",
-                        passwordEncoder.encode("adminPass"));
-                admin.setAccountNonLocked(true);
-                admin.setAccountNonExpired(true);
-                admin.setCredentialsNonExpired(true);
-                admin.setEnabled(true);
-                admin.setCredentialsExpiryDate(LocalDate.now().plusYears(1));
-                admin.setAccountExpiryDate(LocalDate.now().plusYears(1));
-                admin.setTwoFactorEnabled(false);
-                admin.setSignUpMethod("email");
-                admin.setRole(adminRole);
-                userRepository.save(admin);
-            }
-        };
-    }
 }
 

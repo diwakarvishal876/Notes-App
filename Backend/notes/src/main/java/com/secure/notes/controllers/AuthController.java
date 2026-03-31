@@ -1,5 +1,6 @@
 package com.secure.notes.controllers;
 
+import com.secure.notes.exceptions.customException.*;
 import com.secure.notes.models.AppRole;
 import com.secure.notes.models.Role;
 import com.secure.notes.models.User;
@@ -24,6 +25,7 @@ import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.AuthenticationException;
+import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -78,26 +80,21 @@ public class AuthController {
             return new ResponseEntity<Object>(map, HttpStatus.NOT_FOUND);
         }
 
-//      Set the authentication
         SecurityContextHolder.getContext().setAuthentication(authentication);
 
         UserDetails userDetails = (UserDetails) authentication.getPrincipal();
 
         String jwtToken = jwtUtils.generateTokenFromUsername(userDetails);
 
-        // Collect roles from the UserDetails
         List<String> roles = userDetails.getAuthorities().stream()
                 .map(item -> item.getAuthority())
                 .collect(Collectors.toList());
 
-        // Prepare the response body, now including the JWT token directly in the body
         LoginResponse response = new LoginResponse(userDetails.getUsername(),
                 roles, jwtToken);
 
-        // Return the response entity with the JWT token included in the response body
         return ResponseEntity.ok(response);
     }
-
 
     @PostMapping("/public/signup")
     public ResponseEntity<?> registerUser(@Valid @RequestBody SignupRequest signUpRequest) {
@@ -109,7 +106,6 @@ public class AuthController {
             return ResponseEntity.badRequest().body(new MessageResponse("Error: Email is already in use!"));
         }
 
-        // Create new user's account
         User user = new User(signUpRequest.getUsername(),
                 signUpRequest.getEmail(),
                 encoder.encode(signUpRequest.getPassword()));
@@ -119,15 +115,15 @@ public class AuthController {
 
         if (strRoles == null || strRoles.isEmpty()) {
             role = roleRepository.findByRoleName(AppRole.ROLE_USER)
-                    .orElseThrow(() -> new RuntimeException("Error: Role is not found."));
+                    .orElseThrow(() -> new RoleNotFoundException("Error: Role is not found."));
         } else {
             String roleStr = strRoles.iterator().next();
             if (roleStr.equals("admin")) {
                 role = roleRepository.findByRoleName(AppRole.ROLE_ADMIN)
-                        .orElseThrow(() -> new RuntimeException("Error: Role is not found."));
+                        .orElseThrow(() -> new RoleNotFoundException("Error: Role is not found."));
             } else {
                 role = roleRepository.findByRoleName(AppRole.ROLE_USER)
-                        .orElseThrow(() -> new RuntimeException("Error: Role is not found."));
+                        .orElseThrow(() -> new RoleNotFoundException("Error: Role is not found."));
             }
 
             user.setAccountNonLocked(true);
@@ -145,13 +141,12 @@ public class AuthController {
         return ResponseEntity.ok(new MessageResponse("User registered successfully!"));
     }
 
-
     @GetMapping("/user")
     public ResponseEntity<?> getUserDetails(@AuthenticationPrincipal UserDetails userDetails) {
         User user = userService.findByUsername(userDetails.getUsername());
 
         List<String> roles = userDetails.getAuthorities().stream()
-                .map(item -> item.getAuthority())
+                .map(GrantedAuthority::getAuthority)
                 .collect(Collectors.toList());
 
         UserInfoResponse response = new UserInfoResponse(
@@ -186,40 +181,36 @@ public class AuthController {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(new MessageResponse("Error sending password reset email"));
         }
-
     }
 
     @PostMapping("/public/reset-password")
     public ResponseEntity<?> resetPassword(@RequestParam String token,
                                            @RequestParam String newPassword) {
-
         try {
             userService.resetPassword(token, newPassword);
             return ResponseEntity.ok(new MessageResponse("Password reset successful"));
-        } catch (RuntimeException e) {
+        } catch (InvalidTokenException | TokenExpiredException | TokenAlreadyUsedException e) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                     .body(new MessageResponse(e.getMessage()));
         }
     }
+
     @PostMapping("/update-password")
     public ResponseEntity<?> updatePassword(
             HttpServletRequest request,
             @RequestParam String newPassword
     ) {
         try {
-            // Extract JWT token from Authorization header
             String token = jwtUtils.getJwtFromHeader(request);
             if (token == null) {
                 return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                         .body(new MessageResponse("Unauthorized: No token provided"));
             }
 
-            // Get username from token
             String username = jwtUtils.getUserNameFromJwtToken(token);
             User user = userRepository.findByUserName(username)
-                    .orElseThrow(() -> new RuntimeException("User not found"));
+                    .orElseThrow(() -> new UserNotFoundException("User not found"));
 
-            // Update password securely
             user.setPassword(encoder.encode(newPassword));
             userRepository.save(user);
 
@@ -230,27 +221,25 @@ public class AuthController {
                     .body(new MessageResponse("Failed to update password"));
         }
     }
+
     @PostMapping("/update-credentials")
     public ResponseEntity<?> updateCredentials(
             HttpServletRequest request,
             @RequestParam String newUsername,
             @RequestParam String newPassword) {
         try {
-            // Extract JWT token from Authorization header
             String token = jwtUtils.getJwtFromHeader(request);
             if (token == null) {
                 return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                         .body(new MessageResponse("Unauthorized: No token provided"));
             }
 
-            // Get username from token
             String currentUsername = jwtUtils.getUserNameFromJwtToken(token);
             User user = userRepository.findByUserName(currentUsername)
-                    .orElseThrow(() -> new RuntimeException("User not found"));
+                    .orElseThrow(() -> new UserNotFoundException("User not found"));
 
-            // Update username and password securely
-            user.setUserName(newUsername); // Add this line
-            if (newPassword != null && !newPassword.isEmpty()) { // Only update password if provided
+            user.setUserName(newUsername);
+            if (newPassword != null && !newPassword.isEmpty()) {
                 user.setPassword(encoder.encode(newPassword));
             }
             userRepository.save(user);
@@ -262,7 +251,7 @@ public class AuthController {
                     .body(new MessageResponse("Failed to update credentials"));
         }
     }
-    // 2FA Authentication
+
     @PostMapping("/enable-2fa")
     public ResponseEntity<String> enable2FA() {
         Long userId = authUtil.loggedInUserId();
@@ -272,14 +261,12 @@ public class AuthController {
         return ResponseEntity.ok(qrCodeUrl);
     }
 
-
     @PostMapping("/disable-2fa")
     public ResponseEntity<String> disable2FA() {
         Long userId = authUtil.loggedInUserId();
         userService.disable2FA(userId);
         return ResponseEntity.ok("2FA disabled");
     }
-
 
     @PostMapping("/verify-2fa")
     public ResponseEntity<String> verify2FA(@RequestParam int code) {
@@ -294,7 +281,6 @@ public class AuthController {
         }
     }
 
-
     @GetMapping("/user/2fa-status")
     public ResponseEntity<?> get2FAStatus() {
         User user = authUtil.loggedInUser();
@@ -305,7 +291,6 @@ public class AuthController {
                     .body("User not found");
         }
     }
-
 
     @PostMapping("/public/verify-2fa-login")
     public ResponseEntity<String> verify2FALogin(@RequestParam int code,
@@ -324,8 +309,7 @@ public class AuthController {
     @PutMapping("/update-expiry-status")
     public ResponseEntity<?> updateAccountExpiryStatus(@RequestParam boolean expire) {
         User user = authUtil.loggedInUser();
-        // Frontend sends 'accountExpired', backend stores 'accountNonExpired'
-        // So we set the backend field to the opposite of the frontend value.
+
         user.setAccountNonExpired(!expire);
         userRepository.save(user);
         return ResponseEntity.ok(new MessageResponse("Account expiry status updated."));
@@ -334,7 +318,7 @@ public class AuthController {
     @PutMapping("/update-lock-status")
     public ResponseEntity<?> updateAccountLockStatus(@RequestParam boolean lock) {
         User user = authUtil.loggedInUser();
-        // Frontend sends 'accountLocked', backend stores 'accountNonLocked'
+
         user.setAccountNonLocked(!lock);
         userRepository.save(user);
         return ResponseEntity.ok(new MessageResponse("Account lock status updated."));
@@ -343,7 +327,7 @@ public class AuthController {
     @PutMapping("/update-enabled-status")
     public ResponseEntity<?> updateAccountEnabledStatus(@RequestParam boolean enabled) {
         User user = authUtil.loggedInUser();
-        // This mapping is direct: enabled (frontend) -> enabled (backend)
+
         user.setEnabled(enabled);
         userRepository.save(user);
         return ResponseEntity.ok(new MessageResponse("Account enabled status updated."));
@@ -352,7 +336,7 @@ public class AuthController {
     @PutMapping("/update-credentials-expiry-status")
     public ResponseEntity<?> updateCredentialsExpiryStatus(@RequestParam boolean expire) {
         User user = authUtil.loggedInUser();
-        // Frontend sends 'credentialExpired', backend stores 'credentialsNonExpired'
+
         user.setCredentialsNonExpired(!expire);
         userRepository.save(user);
         return ResponseEntity.ok(new MessageResponse("Credentials expiry status updated."));

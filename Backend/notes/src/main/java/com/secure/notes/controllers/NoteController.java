@@ -20,7 +20,7 @@ public class NoteController {
     public Note createNote(@RequestBody String content,
                            @AuthenticationPrincipal UserDetails userDetails) {
         String username = userDetails.getUsername();
-        System.out.println("USER DETAILS: " + username);
+//        System.out.println("USER DETAILS: " + username);
         return noteService.createNoteForUser(username, content);
     }
 
@@ -45,4 +45,5 @@ public class NoteController {
         String username = userDetails.getUsername();
         noteService.deleteNoteForUser(noteId, username);
     }
+
 }

@@ -9,8 +9,6 @@ import Errors from "../Errors.js";
 import moment from "moment";
 import { MdDateRange } from "react-icons/md";
 
-//Material ui data grid has used for the table
-//initialize the columns for the tables and (field) value is used to show data in a specific column dynamically
 export const auditLogcolumns = [
   {
     field: "actions",
@@ -21,10 +19,9 @@ export const auditLogcolumns = [
     align: "center",
     editable: false,
     headerClassName: "text-black font-semibold border",
-    cellClassName: "text-slate-700 font-normal  border",
-    renderHeader: (params) => <span>Action</span>,
+    cellClassName: "text-slate-700 font-normal border",
+    renderHeader: () => <span>Action</span>,
   },
-
   {
     field: "username",
     headerName: "UserName",
@@ -34,10 +31,9 @@ export const auditLogcolumns = [
     headerAlign: "center",
     align: "center",
     headerClassName: "text-black font-semibold border",
-    cellClassName: "text-slate-700 font-normal  border",
-    renderHeader: (params) => <span>UserName</span>,
+    cellClassName: "text-slate-700 font-normal border",
+    renderHeader: () => <span>UserName</span>,
   },
-
   {
     field: "timestamp",
     headerName: "TimeStamp",
@@ -47,18 +43,14 @@ export const auditLogcolumns = [
     headerAlign: "center",
     align: "center",
     headerClassName: "text-black font-semibold border",
-    cellClassName: "text-slate-700 font-normal  border",
-    renderHeader: (params) => <span>TimeStamp</span>,
-    renderCell: (params) => {
-      return (
-        <div className=" flex  items-center justify-center  gap-1 ">
-          <span>
-            <MdDateRange className="text-slate-700 text-lg" />
-          </span>
-          <span>{params?.row?.timestamp}</span>
-        </div>
-      );
-    },
+    cellClassName: "text-slate-700 font-normal border",
+    renderHeader: () => <span>TimeStamp</span>,
+    renderCell: (params) => (
+      <div className="flex items-center justify-center gap-1">
+        <MdDateRange className="text-slate-700 text-lg" />
+        <span>{params?.row?.timestamp}</span>
+      </div>
+    ),
   },
   {
     field: "noteid",
@@ -69,8 +61,8 @@ export const auditLogcolumns = [
     headerAlign: "center",
     align: "center",
     headerClassName: "text-black font-semibold border",
-    cellClassName: "text-slate-700 font-normal  border",
-    renderHeader: (params) => <span>NoteId</span>,
+    cellClassName: "text-slate-700 font-normal border",
+    renderHeader: () => <span>NoteId</span>,
   },
   {
     field: "note",
@@ -81,14 +73,21 @@ export const auditLogcolumns = [
     disableColumnMenu: true,
     align: "center",
     headerClassName: "text-black font-semibold border",
-    cellClassName: "text-slate-700 font-normal  border",
-    renderHeader: (params) => <span>Note Content</span>,
+    cellClassName: "text-slate-700 font-normal border",
+    renderHeader: () => <span>Note Content</span>,
     renderCell: (params) => {
-      const contens = JSON.parse(params?.value)?.content;
+      let contens = params?.value;
+
+      if (typeof contens === "string") {
+        try {
+          contens = JSON.parse(contens)?.content ?? contens;
+        } catch (e) {
+          // plain text, no parsing needed
+        }
+      }
 
       const response = auditLogsTruncateTexts(contens);
-
-      return <p className=" text-slate-700 text-center   ">{response}</p>;
+      return <p className="text-slate-700 text-center">{response}</p>;
     },
   },
   {
@@ -98,23 +97,20 @@ export const auditLogcolumns = [
     editable: false,
     headerAlign: "center",
     align: "center",
-    headerClassName: "text-black font-semibold ",
-    cellClassName: "text-slate-700 font-normal  ",
+    headerClassName: "text-black font-semibold",
+    cellClassName: "text-slate-700 font-normal",
     sortable: false,
-
-    renderHeader: (params) => <span>Action</span>,
-    renderCell: (params) => {
-      return (
-        <Link
-          to={`/admin/audit-logs/${params.row.noteId}`}
-          className="h-full flex justify-center  items-center   "
-        >
-          <button className="bg-btnColor text-white px-4 flex justify-center items-center  h-9 rounded-md ">
-            Views
-          </button>
-        </Link>
-      );
-    },
+    renderHeader: () => <span>Action</span>,
+    renderCell: (params) => (
+      <Link
+        to={`/admin/audit-logs/${params.row.noteId}`}
+        className="h-full flex justify-center items-center"
+      >
+        <button className="bg-btnColor text-white px-4 h-9 rounded-md">
+          Views
+        </button>
+      </Link>
+    ),
   },
 ];
 
@@ -141,14 +137,10 @@ const AdminAuditLogs = () => {
   }, []);
 
   const rows = auditLogs.map((item) => {
-    //format the time bu using moment npm package
-
     const formattedDate = moment(item.timestamp).format(
       "MMMM DD, YYYY, hh:mm A"
     );
 
-    //set the data for each rows in the table according to the field name in columns
-    //Example: username is the keyword in row it should matche with the field name in column so that the data will show on that column dynamically
     return {
       id: item.id,
       noteId: item.noteId,
@@ -160,9 +152,7 @@ const AdminAuditLogs = () => {
     };
   });
 
-  if (error) {
-    return <Errors message={error} />;
-  }
+  if (error) return <Errors message={error} />;
 
   return (
     <div className="p-4">
@@ -171,45 +161,26 @@ const AdminAuditLogs = () => {
           Audit Logs
         </h1>
       </div>
+
       {loading ? (
-        <>
-          {" "}
-          <div className="flex  flex-col justify-center items-center  h-72">
-            <span>
-              <Blocks
-                height="70"
-                width="70"
-                color="#4fa94d"
-                ariaLabel="blocks-loading"
-                wrapperStyle={{}}
-                wrapperClass="blocks-wrapper"
-                visible={true}
-              />
-            </span>
-            <span>Please wait...</span>
-          </div>
-        </>
+        <div className="flex flex-col justify-center items-center h-72">
+          <Blocks height="70" width="70" color="#4fa94d" visible />
+          <span>Please wait...</span>
+        </div>
       ) : (
-        <>
-          {" "}
-          <div className="overflow-x-auto w-full mx-auto">
-            <DataGrid
-              className="w-fit mx-auto px-0"
-              rows={rows}
-              columns={auditLogcolumns}
-              initialState={{
-                pagination: {
-                  paginationModel: {
-                    pageSize: 6,
-                  },
-                },
-              }}
-              pageSizeOptions={[6]}
-              disableRowSelectionOnClick
-              disableColumnResize
-            />
-          </div>
-        </>
+        <div className="overflow-x-auto w-full mx-auto">
+          <DataGrid
+            className="w-fit mx-auto px-0"
+            rows={rows}
+            columns={auditLogcolumns}
+            initialState={{
+              pagination: { paginationModel: { pageSize: 6 } },
+            }}
+            pageSizeOptions={[6]}
+            disableRowSelectionOnClick
+            disableColumnResize
+          />
+        </div>
       )}
     </div>
   );

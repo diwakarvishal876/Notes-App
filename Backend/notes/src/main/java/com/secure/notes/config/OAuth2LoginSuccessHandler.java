@@ -30,10 +30,7 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class OAuth2LoginSuccessHandler extends SavedRequestAwareAuthenticationSuccessHandler {
 
-    @Autowired
     private final UserService userService;
-
-    @Autowired
     private final JwtUtils jwtUtils;
 
     @Autowired
@@ -46,32 +43,38 @@ public class OAuth2LoginSuccessHandler extends SavedRequestAwareAuthenticationSu
     String idAttributeKey;
 
     @Override
-    public void onAuthenticationSuccess(HttpServletRequest request, HttpServletResponse response, Authentication authentication) throws ServletException, IOException {
+    public void onAuthenticationSuccess(HttpServletRequest request, HttpServletResponse response,
+                                        Authentication authentication) throws ServletException, IOException {
         OAuth2AuthenticationToken oAuth2AuthenticationToken = (OAuth2AuthenticationToken) authentication;
+
         if ("github".equals(oAuth2AuthenticationToken.getAuthorizedClientRegistrationId()) ||
                 "google".equals(oAuth2AuthenticationToken.getAuthorizedClientRegistrationId())) {
+
             DefaultOAuth2User principal = (DefaultOAuth2User) authentication.getPrincipal();
             Map<String, Object> attributes = principal.getAttributes();
-            System.out.println("onAuthenticationSuccess attributes"+attributes);
-            String email = attributes.getOrDefault("email", "").toString();
-            String name = attributes.getOrDefault("name", "").toString();
-//            Object emailObj=attributes.getOrDefault("email", null);
-//            String email = emailObj != null ? emailObj.toString() :"Anonymous@gmail.com";
-//
-//            Object nameObj = attributes.getOrDefault("name", null);
-//            String name = nameObj != null ? nameObj.toString() : "";
+            System.out.println("onAuthenticationSuccess attributes: " + attributes);
+
+            // Null-safe attribute extraction
+            String email = getAttributeAsString(attributes, "email");
+            String name = getAttributeAsString(attributes, "name");
 
             if ("github".equals(oAuth2AuthenticationToken.getAuthorizedClientRegistrationId())) {
-                username = attributes.getOrDefault("login", "").toString();
+                username = getAttributeAsString(attributes, "login");
                 idAttributeKey = "id";
             } else if ("google".equals(oAuth2AuthenticationToken.getAuthorizedClientRegistrationId())) {
-                username = email.split("@")[0];
+                username = email.contains("@") ? email.split("@")[0] : email;
                 idAttributeKey = "sub";
             } else {
                 username = "";
                 idAttributeKey = "id";
             }
+
             System.out.println("HELLO OAUTH: " + email + " : " + name + " : " + username);
+
+            // Validate required fields
+            if (email == null || email.isEmpty()) {
+                throw new RuntimeException("Email not provided by OAuth2 provider");
+            }
 
             userService.findByEmail(email)
                     .ifPresentOrElse(user -> {
@@ -88,11 +91,10 @@ public class OAuth2LoginSuccessHandler extends SavedRequestAwareAuthenticationSu
                         SecurityContextHolder.getContext().setAuthentication(securityAuth);
                     }, () -> {
                         User newUser = new User();
-                        Optional<Role> userRole = roleRepository.findByRoleName(AppRole.ROLE_USER); // Fetch existing role
+                        Optional<Role> userRole = roleRepository.findByRoleName(AppRole.ROLE_USER);
                         if (userRole.isPresent()) {
-                            newUser.setRole(userRole.get()); // Set existing role
+                            newUser.setRole(userRole.get());
                         } else {
-                            // Handle the case where the role is not found
                             throw new RuntimeException("Default role not found");
                         }
                         newUser.setEmail(email);
@@ -112,24 +114,25 @@ public class OAuth2LoginSuccessHandler extends SavedRequestAwareAuthenticationSu
                         SecurityContextHolder.getContext().setAuthentication(securityAuth);
                     });
         }
+
         this.setAlwaysUseDefaultTargetUrl(true);
 
         // JWT TOKEN LOGIC
         DefaultOAuth2User oauth2User = (DefaultOAuth2User) authentication.getPrincipal();
         Map<String, Object> attributes = oauth2User.getAttributes();
 
-        // Extract necessary attributes
-        String email = (String) attributes.get("email");
+        // Extract necessary attributes with null safety
+        String email = getAttributeAsString(attributes, "email");
         System.out.println("OAuth2LoginSuccessHandler: " + username + " : " + email);
 
         Set<SimpleGrantedAuthority> authorities = new HashSet<>(oauth2User.getAuthorities().stream()
                 .map(authority -> new SimpleGrantedAuthority(authority.getAuthority()))
                 .collect(Collectors.toList()));
+
         User user = userService.findByEmail(email).orElseThrow(
                 () -> new RuntimeException("User not found"));
         authorities.add(new SimpleGrantedAuthority(user.getRole().getRoleName().name()));
 
-        // Create UserDetailsImpl instance
         UserDetailsImpl userDetails = new UserDetailsImpl(
                 null,
                 username,
@@ -148,5 +151,16 @@ public class OAuth2LoginSuccessHandler extends SavedRequestAwareAuthenticationSu
                 .build().toUriString();
         this.setDefaultTargetUrl(targetUrl);
         super.onAuthenticationSuccess(request, response, authentication);
+    }
+
+    /**
+     * Safely extract string attribute from OAuth2 attributes map
+     */
+    private String getAttributeAsString(Map<String, Object> attributes, String key) {
+        Object value = attributes.get(key);
+        if (value == null) {
+            return "";
+        }
+        return value.toString();
     }
 }

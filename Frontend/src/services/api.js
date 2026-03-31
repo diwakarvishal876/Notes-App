@@ -49,6 +49,14 @@ api.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
+export default api;
+
+
+
+
+
+
+
 // api.interceptors.request.use(
 //   async (config) => {
 //     const token = localStorage.getItem("JWT_TOKEN");
@@ -81,4 +89,4 @@ api.interceptors.request.use(
 //   }
 // );
 
-export default api;
+
